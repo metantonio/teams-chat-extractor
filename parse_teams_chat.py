@@ -1,5 +1,6 @@
 import os
 import sys
+import glob
 import struct
 import re
 import json
@@ -173,8 +174,37 @@ def sanitize_filename(name):
     clean = re.sub(r'[^a-zA-Z0-9_\-]+', '_', name).strip('_')
     return clean if clean else "conversacion"
 
-def read_teams_leveldb():
-    leveldb_dir = Path(os.environ["LOCALAPPDATA"]) / "Packages" / "MSTeams_8wekyb3d8bbwe" / "LocalCache" / "Microsoft" / "MSTeams" / "EBWebView" / "WV2Profile_tfw" / "IndexedDB" / "https_teams.microsoft.com_0.indexeddb.leveldb"
+def find_teams_leveldb_dir():
+    """Busca dinámicamente el directorio de LevelDB de Teams con fallback a la ruta estándar."""
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
+    app_data = os.environ.get("APPDATA", "")
+
+    search_patterns = [
+        # 1. New Teams (MSIX / Store) - cualquier perfil (tfw, tfl, default, etc.)
+        os.path.join(local_app_data, "Packages", "*Teams*", "LocalCache", "Microsoft", "MSTeams", "EBWebView", "*", "IndexedDB", "https_teams.microsoft.com_*.indexeddb.leveldb"),
+        # 2. New Teams (Instalación Standalone / No MSIX)
+        os.path.join(local_app_data, "Microsoft", "MSTeams", "EBWebView", "*", "IndexedDB", "https_teams.microsoft.com_*.indexeddb.leveldb"),
+        # 3. Teams Web (Microsoft Edge)
+        os.path.join(local_app_data, "Microsoft", "Edge", "User Data", "*", "IndexedDB", "https_teams.microsoft.com_*.indexeddb.leveldb"),
+        # 4. Teams Clásico (Electron)
+        os.path.join(app_data, "Microsoft", "Teams", "IndexedDB", "https_teams.microsoft.com_*.indexeddb.leveldb")
+    ]
+
+    for pattern in search_patterns:
+        matches = glob.glob(pattern)
+        if matches:
+            matches.sort(key=os.path.getmtime, reverse=True)
+            return Path(matches[0])
+
+    # Fallback a la ruta estándar
+    return Path(local_app_data) / "Packages" / "MSTeams_8wekyb3d8bbwe" / "LocalCache" / "Microsoft" / "MSTeams" / "EBWebView" / "WV2Profile_tfw" / "IndexedDB" / "https_teams.microsoft.com_0.indexeddb.leveldb"
+
+def read_teams_leveldb(custom_path=None):
+    if custom_path:
+        leveldb_dir = Path(custom_path)
+    else:
+        leveldb_dir = find_teams_leveldb_dir()
+
     if not leveldb_dir.exists():
         raise FileNotFoundError(f"No se encontró el directorio de LevelDB en: {leveldb_dir}")
 
@@ -185,7 +215,7 @@ def read_teams_leveldb():
     for logf in sorted(leveldb_dir.glob("*.log")):
         all_kvs.extend(read_leveldb_log(logf))
 
-    return all_kvs
+    return all_kvs, leveldb_dir
 
 def main():
     parser = argparse.ArgumentParser(description="Extractor y analizador de conversaciones de Microsoft Teams desde la caché local.")
@@ -193,13 +223,19 @@ def main():
     parser.add_argument("--topic", type=str, default=None, help="Nombre o palabra clave del grupo/conversación a extraer (ej: 'Proyecto Cloud').")
     parser.add_argument("--id", type=str, default=None, help="ID exacto del hilo (ej: '19:abcdef0123456789abcdef0123456789@thread.v2').")
     parser.add_argument("--output", type=str, default=None, help="Directorio de destino donde guardar los reportes.")
+    parser.add_argument("--db-path", type=str, default=None, help="Ruta personalizada a la base de datos LevelDB de Teams (ignora el auto-descubrimiento).")
     args = parser.parse_args()
 
     config = load_config()
 
-    print("[*] Leyendo datos de la base de datos de Teams...")
-    all_kvs = read_teams_leveldb()
-    print(f"[*] Registros cargados desde LevelDB: {len(all_kvs)}")
+    print("[*] Localizando base de datos de Teams...")
+    try:
+        all_kvs, resolved_db_path = read_teams_leveldb(args.db_path or config.get("db_path"))
+        print(f"[*] Base de datos activa: {resolved_db_path}")
+        print(f"[*] Registros cargados desde LevelDB: {len(all_kvs)}")
+    except FileNotFoundError as e:
+        print(f"[!] Error: {e}")
+        sys.exit(1)
 
     threads_discovered = discover_available_threads(all_kvs)
 
