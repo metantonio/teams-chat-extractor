@@ -1,0 +1,5 @@
+{
+  "default_topic": "Proyecto Cloud Infraestructura",
+  "default_thread_id": "19:0123456789abcdef0123456789abcdef@thread.v2",
+  "output_base_dir": "extracted_chat"
+}

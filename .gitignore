@@ -1,0 +1,7 @@
+config.json
+!config.json.example
+
+__pycache__/
+*.py[cod]
+scratch/
+extracted_chat/
