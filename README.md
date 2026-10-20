@@ -60,6 +60,22 @@ Herramienta en Python para extraer, deserializar y organizar el historial de con
 
 ## Uso
 
+### Inicio Rápido (Script Batch en Windows)
+Puedes hacer **doble clic** en `iniciar_extraccion.bat` para abrir un menú interactivo que te permite:
+- Extraer según la configuración de `config.json`.
+- Listar todas las conversaciones en disco.
+- Extraer por nombre / palabra clave o por ID de hilo.
+- Instalar automáticamente dependencias faltantes (`cramjam`) si es necesario.
+
+También puedes pasarle argumentos directamente desde la terminal:
+```cmd
+iniciar_extraccion.bat
+iniciar_extraccion.bat --list
+iniciar_extraccion.bat --topic "DevOps Team"
+```
+
+---
+
 ### 1. Listar todas las conversaciones en la caché local
 Descubre todos los canales, grupos y chats privados almacenados en disco:
 ```powershell
