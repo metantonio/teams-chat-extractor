@@ -1,39 +1,47 @@
 @echo off
+setlocal EnableExtensions
 chcp 65001 >nul
 title Teams Chat Extractor
 
 cd /d "%~dp0"
 
-REM 1. Detectar entorno virtual de Python o Python global
+REM 1. Detectar ejecutable de Python
 set "PYTHON_CMD="
+
 if exist ".venv\Scripts\python.exe" (
     set "PYTHON_CMD=.venv\Scripts\python.exe"
-) else if exist "venv\Scripts\python.exe" (
+    goto PYTHON_FOUND
+)
+if exist "venv\Scripts\python.exe" (
     set "PYTHON_CMD=venv\Scripts\python.exe"
-) else (
-    where py >nul 2>nul
-    if not errorlevel 1 (
-        set "PYTHON_CMD=py"
-    ) else (
-        where python >nul 2>nul
-        if not errorlevel 1 (
-            set "PYTHON_CMD=python"
-        )
-    )
+    goto PYTHON_FOUND
 )
 
-if "%PYTHON_CMD%"=="" (
-    echo ===============================================================================
-    echo [ERROR] No se ha encontrado Python instalado en el sistema ni en el PATH.
-    echo Por favor, instala Python 3.10 o superior desde https://www.python.org/
-    echo Asegurate de marcar la casilla "Add Python to PATH" durante la instalacion.
-    echo ===============================================================================
-    echo.
-    pause
-    exit /b 1
+where py >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    set "PYTHON_CMD=py"
+    goto PYTHON_FOUND
 )
 
-REM 2. Comprobar libreria requerida cramjam
+where python >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    set "PYTHON_CMD=python"
+    goto PYTHON_FOUND
+)
+
+:PYTHON_NOT_FOUND
+echo ===============================================================================
+echo [ERROR] No se ha encontrado Python en el sistema.
+echo.
+echo Por favor, instala Python 3.10 o superior desde https://www.python.org/
+echo IMPORTANTE: Marca la opcion "Add Python to PATH" durante la instalacion.
+echo ===============================================================================
+echo.
+pause
+exit /b 1
+
+:PYTHON_FOUND
+REM 2. Comprobar dependencia cramjam
 "%PYTHON_CMD%" -c "import cramjam" >nul 2>nul
 if errorlevel 1 (
     echo [*] La libreria requerida 'cramjam' no esta instalada.
@@ -49,18 +57,13 @@ if errorlevel 1 (
     echo.
 )
 
-REM 3. Si se pasan argumentos por linea de comandos, ejecutarlos directamente
+REM 3. Si se pasaron argumentos desde consola, ejecutar directamente
 if not "%~1"=="" (
     "%PYTHON_CMD%" parse_teams_chat.py %*
-    set "EXIT_CODE=%ERRORLEVEL%"
-    if %EXIT_CODE% neq 0 (
-        echo.
-        echo [!] La ejecucion finalizo con codigo de error %EXIT_CODE%.
-    )
-    exit /b %EXIT_CODE%
+    exit /b
 )
 
-REM 4. Menu interactivo cuando se ejecuta con doble clic (sin argumentos)
+REM 4. Menu interactivo cuando se ejecuta con doble clic
 :MENU
 cls
 echo ===============================================================================
@@ -74,6 +77,7 @@ echo   [4] Extraer conversacion por Thread ID exacto (--id)
 echo   [5] Salir
 echo.
 echo ===============================================================================
+set "OPCION="
 set /p "OPCION=Selecciona una opcion [1-5] (por defecto 1): "
 
 if "%OPCION%"=="" set "OPCION=1"
@@ -102,6 +106,7 @@ goto FIN
 
 :OP_TOPIC
 echo.
+set "TOPIC_NAME="
 set /p "TOPIC_NAME=Introduce el nombre o palabra clave de la conversacion: "
 if "%TOPIC_NAME%"=="" (
     echo [!] Nombre no valido.
@@ -115,6 +120,7 @@ goto FIN
 
 :OP_ID
 echo.
+set "THREAD_ID="
 set /p "THREAD_ID=Introduce el Thread ID completo (ej. 19:...@thread.v2): "
 if "%THREAD_ID%"=="" (
     echo [!] ID no valido.
